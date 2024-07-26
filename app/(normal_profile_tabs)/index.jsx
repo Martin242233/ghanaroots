@@ -1,299 +1,535 @@
-import {Platform, Image, ImageBackground, ScrollView,  StyleSheet, Text, View, SafeAreaView, TextInput,FlatList, TouchableOpacity,Directions} from 'react-native'
-import React, {useState} from 'react'
+import React, { useState, useEffect} from 'react';
+import {
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+  SafeAreaView,
+  TextInput,
+  FlatList,
+  TouchableOpacity,
+  Image,
+  ImageBackground,
+  ScrollView,
+  Alert,
+} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { router } from "expo-router";
+import { useRouter, useLocalSearchParams} from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
+import axios from 'axios';
+import { getCurrentUser, signUserOut, fetchUserData } from '../../lib/firebaseConfig';
+import { useGlobalContext } from "../../context/GlobalProvider";
 
-const image = {uri: '../../assets/images/tourismPng.png'};
+const categoryTypes = [
+  {
+    id: 'his',
+    title: 'History',
+    image: require('../../assets/images/Akan-Elder.jpg'),
+    category: 'history',
+    labels: ['ancient', 'events', 'heritage'],
+  },
+  {
+    id: 'foo',
+    title: 'Foods',
+    image: require('../../assets/images/ampesi-and-kontomire-food-1.jpg'),
+    category: 'foods',
+    labels: ['cuisine', 'recipes', 'dishes'],
+  },
 
-const index = () => {
-  const categoryTypes = [
-    {
-      id: 'his',
-      title: 'History',
-      image: require('../../assets/images/history.png'),
-      category: 'history',
-      labels: ['ancient', 'events', 'heritage']
-    },
-    {
-      id: 'foo',
-      title: 'Foods',
-      image: require('../../assets/images/dishes.png'),
-      category: 'foods',
-      labels: ['cuisine', 'recipes', 'dishes']
-    },
-    {
-      id: 'Tou',
-      title: 'Tourism',
-      image: require('../../assets/images/tourismPng.png'),
-      category: 'tourism',
-      labels: ['travel', 'sights', 'adventures']
-    },
-    {
-      id: 'Lan',
-      title: 'Languages',
-      image: require('../../assets/images/languages.png'),
-      category: 'languages',
-      labels: ['linguistics', 'dialects', 'communication']
+  {
+    id: 'Touh',
+    title: 'Tourism',
+    image: require('../../assets/images/independance-place.jpg'),
+    category: 'tourism',
+    labels: ['travel', 'sights', 'adventures'],
+  },
+
+  {
+    id: 'Touy',
+    title: 'Arts',
+    image: require('../../assets/images/Asante-gold-weights.png'),
+    category: 'arts',
+    labels: ['travel', 'sights', 'adventures'],
+  },
+
+  
+  {
+    id: 'Nana',
+    title: 'Various',
+    image: require('../../assets/images/Various.gif'),
+    category: 'arts',
+    labels: ['travel', 'sights', 'adventures'],
+  },
+];
+
+const Index = () => {
+  const { 
+    isAuth, 
+    setIsAuth, 
+    setIsUser, 
+    isUser, 
+    setUser, 
+    user,
+  } = useGlobalContext();
+  const router = useRouter();
+  const [filteredEvents, setFilteredEvents] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { item_desc, item_id, item_image_url } = useLocalSearchParams();
+  const navigation = useNavigation();
+  const { newItem } = useLocalSearchParams(); // Retrieve new item data
+
+
+  const [category , setCategory] = useState(null);
+  const categoryValue = [ 
+    {label: "history", value: "history", key: "history"}, 
+    {label: "foods", value: "foods", key: "foods"},
+    {label: "tourism", value: "tourism", key: "tourism"},
+    {label: "arts", value: "arts", key: "arts"},
+    {label: "various", value: "various", key: "various"},
+
+]
+
+
+
+
+    // Define an array of event IDs to remove
+    const eventsToRemove = ['TabEDDJaDSJwxat8oc', 'MdkUbaRKygPTp47q2T', 'wKHUsK8piAWHdMUhhr'];
+
+   // Unsplash API access key
+   const UNSPLASH_ACCESS_KEY = 'H6LKLB3cfSxkdSporkNe-DhHleAXnvJqB_F8-astRec';
+
+   // Function to fetch images from Unsplash based on a search query
+   const fetchImagesFromUnsplash = async (query) => {
+       try {
+           const response = await axios.get('https://api.unsplash.com/search/photos', {
+               params: {
+                   query,
+                   client_id: UNSPLASH_ACCESS_KEY,
+                   per_page: 1,
+               },
+           });
+           return response.data.results.length > 0 ? response.data.results[0].urls.small : 'https://via.placeholder.com/184x139';
+       } catch (error) {
+           console.error('Error fetching images from Unsplash:', error);
+           return 'https://via.placeholder.com/184x139';
+       }
+   };
+
+
+
+  const fetchEvents = async () => {
+    try {
+        const response = await axios.get(
+            "https://api.predicthq.com/v1/saved-locations/xBcod9tmnJwPZJjVYObWfw/insights/events?country=Gh&lim",
+            {
+                headers: {
+                    "Authorization": "Bearer N8z9jcI1h8f17Ijj_sdOkUCaQm_Azs1CuzSEAS2V",
+                    "Accept": "application/json"
+                },
+                params: {
+                    country: 'Gh',
+                    limit: 50,
+                }
+            }
+        );
+
+        console.log('API response:', response);
+
+        // Process the events data
+        const eventsData = await Promise.all(response.data.results.map(async event => {
+            const imageUrl = await fetchImagesFromUnsplash(event.title);
+            const address = event.entities && event.entities.length > 0 
+                ? event.entities[0].formatted_address 
+                : 'Address not available';
+            return {
+                id: event.id,
+                title: event.title.length > 20 ? event.title.substring(0,20)  : event.title,
+                start: new Date(event.start).toDateString(),
+                thumbnail: imageUrl,
+                description: event.description,
+                link: event.link,
+                tags: event.tags,
+                category: event.category,
+                local_rank: event.local_rank || Math.random() * 100,
+                address,
+            };
+        }));
+
+
+        console.log('Events:', eventsData); // Log events data
+        setEvents(eventsData);
+        setFilteredEvents(eventsData); // Initially, show all events
+    } catch (error) {
+        console.error('Error fetching events:', error);
+        Alert.alert('Error', 'Failed to fetch events');
+    } finally {
+        setLoading(false);
     }
-  ];
+};
 
-  const [selectedId, setSelectedId] = useState();
+ // Fetch events on component mount
+ useEffect(() => {
+  if(!isAuth){
+    setTimeout(() => {
+      setIsAuth(false);
+      signUserOut();
+      // signOutAppWrite();
+      setIsUser(null);
+      router.replace('signIn');
+      setLoading(false);
+    }, 0);
+}else{
+  
+  const load = async () => {
+    try {
+      if(isUser){
+        setLoading(true);
+        const user = await fetchUserData(isUser.uid);
+        console.log(user);
+        setUser(user);
+        setLoading(false);
+      }
+    } catch (error) {
+      throw new Error(error);
+    }
+  }
+  load();
+  
+}
+  fetchEvents();
+}, []);
+const truncateText = (text, maxLength) => {
+  if (text.length > maxLength) {
+    return `${text.substring(0, maxLength)}...`;
+  } else {
+    return text;
+  }
+};
 
-  const Item = ({item, onPress}) => (
-    
-    
-    
-    <TouchableOpacity onPress={onPress}>
-      <View style={{ backgroundColor:'red',marginBottom: 5, flexWrap: 'wrap'}}>
-        {/* Header */}
-        <View>
-          <Text style='blue'>Username</Text>
-          <View style={styles.container2}>
-            <Image
-              style={styles.tinyLogo}
-              source={require('..//../assets/images/imgpro1.png')}
-            />
+
+
+  const renderHeader = () => (
+    <>
+      <View style={styles.header}>
+        <Text style={styles.logo}>GhanaRoots</Text>
+        <View style={styles.userIcon}>
+          <Icon name="person-outline" size={27} />
+        </View>
+      </View>
+
+      <View style={styles.searchContainer}>
+        <TextInput
+          placeholder="Search"
+          placeholderTextColor="#9c9c9c"
+          style={styles.searchInput}
+        />
+        <TouchableOpacity style={styles.searchButton}>
+          <Icon name="search-outline" size={20} style={styles.searchIcon} />
+        </TouchableOpacity>
+      </View>
+
+      <Text style={styles.categoriesTitle}>UpComing Events in Ghana</Text>
+
+      <ScrollView
+        horizontal
+        contentContainerStyle={styles.cardsContainer}
+        showsHorizontalScrollIndicator={false}
+      >
+        {filteredEvents.map((event) => (
+          <>
+          <View style={{flexDirection: 'column'}}>
+          <TouchableOpacity
+            key={event.id}
+            onPress={() =>
+              router.push({
+                pathname: 'eventdetail/[eventdetail]',
+                params: {  eventId: event.id },
+              })
+            }
+            style={styles.categoryCard}
+          >
+          <ImageBackground source={event.thumbnail ? {uri: event.thumbnail } : Image} style={styles.categoryImage} />
+          </TouchableOpacity>
+          <Text style={styles.categoryText1} numberOfLines={1} ellipsizeMode="tail" >{truncateText(event.title)}</Text>
+          </View>
+
+          </>
+        ))}
+        
+      </ScrollView>
+
+      <Text style={styles.categoriesTitle}>Categories</Text>
+
+      <ScrollView
+        horizontal
+        contentContainerStyle={styles.cardsContainer}
+        showsHorizontalScrollIndicator={false}
+      >
+        {categoryTypes.map((item, index) => (
+          <TouchableOpacity
+            key={index}
+            onPress={() =>
+              router.push({
+                pathname: 'category/[categoryScreen]',
+                params: { category: item.category, labels: item.labels },
+              })
+            }
+            style={styles.categoryCard}
+          >
+            <ImageBackground
+              style={styles.categoryImage}
+              resizeMode="cover"
+              source={item.image}
+            >
+              <Text style={styles.categoryText}>{item.title}</Text>
+            </ImageBackground>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </>
+  );
+
+
+   // Ensure new item gets added to items state
+   useEffect(() => {
+    if (newItem) {
+      const parsedNewItem = JSON.parse(newItem);
+      setItems((prevItems) => [parsedNewItem, ...prevItems]);
+    }
+  }, [newItem]);
+
+  const renderItem = ({ item }) => (
+    <View style={styles.listItem}>
+      <View style={styles.itemContent}>
+        <View style={styles.postHeader}>
+          <View style={styles.userIcon}>
+            <Icon name="person-outline" size={27} />
+          </View>
+          <View style={styles.userInfo}>
+            <TouchableOpacity  onPress={() =>
+              router.push({
+                pathname: 'profile/[profile]',
+                params: {
+                  user_name: 'Testing user',
+                  user_id: 'Testing user id'
+                },
+              })
+            }>
+              <Text style={styles.username}>username</Text>
+            </TouchableOpacity>
+            <Text style={styles.timeAgo}>3 days ago</Text>
           </View>
         </View>
-        {/* Header */}
-
-        {/* Body */}
-        <View style={{backgroundColor: 'yellow', width:'100%', height:'75%'}}>
-          
+        <View style={styles.body}>
+          <Text>
+          {item.description}
+          </Text>
         </View>
-        {/* Body */}
-        
-  
-        {/* Footer */}
-        {/* Footer */}
-
-  
-  
-      </View>
-    </TouchableOpacity>
-  );
-  const renderItem = ({item}) => {
-    // const backgroundColor = item.id === selectedId ? '#6e3b6e' : '#f9c2ff';
-    // const color = item.id === selectedId ? 'white' : 'black';
-
-    return (
-      <Item
-        item={item}
-        onPress={() => console.log(item.id)}
-      />
-    );
-  };
-
-  return (
-    <SafeAreaView className="h-full  bg-white">
-        <Text style={{fontSize: 30, marginTop: 30, textAlign: 'center'}}>Welcome</Text>
-        <Text style={{fontSize: 20, textAlign:'center',marginTop:40}}>To GhanaRoots</Text>
-
-        <View style={{backgroundColor:'lightgray', flexDirection:'row', justifyContent:'flex-start', alignItems:'center',borderRadius:13,height:50, width:'90%',marginLeft:18}}>          
-          <TextInput placeholder='Search'placeholderTextColor='#9c9c9c' style={styles.text}/>
-          <Icon name="search-outline" size={17}/>
-        </View>
-
-        {/* <FlatList
-          className="h-full mt-8 ml-4"
-          data={categoryTypes}
-          renderItem={({item})=>
-            <TouchableOpacity
-              className="bg-white border-2"
-              style={{
-                borderRadius: 13,
-                width: '70%',
-                height: '50%', 
-                marginLeft: 0,
-              }}
-            >
-              <View>
-                <Text>{item.title}</Text>
+        <Image
+          source={require('../../assets/images/tourismPng.png')}
+          style={styles.postImage}
+        />
+        <View style={styles.footer}>
+          <View style={styles.footerIcons}>
+            <TouchableOpacity>
+              <View style={styles.iconWithText}>
+                <Icon name="heart-outline" size={27} />
+                <Text style={styles.iconText}>Likes</Text>
               </View>
             </TouchableOpacity>
-          }
-          keyExtractor={item => item.id}
-          horizontal={true}
-        /> */}
-     <ScrollView horizontal contentContainerStyle={styles.cards2} showsHorizontalScrollIndicator={false}>
-  {categoryTypes.map((item, index) => (
-    <TouchableOpacity
-      key={index}
-      onPress={() =>
-        router.push({
-          pathname: 'src/screens/Categorieslist/categorieslist',
-          params: { category: item.category, labels: item.labels }
-        })
-      }
-      style={styles.cards1}
-    >
-      <ImageBackground style={styles.Prayer} resizeMode="cover" source={item.image}>
-        <Text style={styles.categoryText}>{item.title}</Text>
-      </ImageBackground>
-    </TouchableOpacity>
-  ))}
-</ScrollView>
-<View style={{height: '100%'}}>
+            <TouchableOpacity>
+              <View style={styles.iconWithText}>
+                <Icon name="chatbubble-outline" size={27} />
+                <Text style={styles.iconText}>Comments</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity>
+              <View style={styles.iconWithText}>
+                <Icon name="share-social-outline" size={27} />
+                <Text style={styles.iconText}>Share</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
 
+
+
+  
+  return (
+    <SafeAreaView style={styles.safeArea}>
       <FlatList
-        style={{height:'100%',}}
+        ListHeaderComponent={renderHeader}
         data={categoryTypes}
         renderItem={renderItem}
-        keyExtractor={item => item.id}
-        extraData={selectedId}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.list}
       />
-</View>
     </SafeAreaView>
-  )
-
-}
+  );
+};
 
 const styles = StyleSheet.create({
-  container2: {
-    paddingTop: 50,
-  },
-  tinyLogo: {
-    width: 50,
-    height: 50,
-  },
-  logo: {
-    width: 66,
-    height: 58,
-  },
-  text:{  
-    paddingLeft:10,
-    backgroundColor: 'lightgray',
-    height: 38,
-    borderRadius: 13,
-    width:'75%',
-  },
-  container: {
+  safeArea: {
     flex: 1,
-    alignItems: "center",
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-},
-des: {
+    backgroundColor: 'white',
+  },
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-},
-content: {
-    marginLeft: 47,
-    width: '70%',
-    backgroundColor: '#E0E0E0',
-    borderRadius: 20,
-    paddingHorizontal: 20,
-    marginTop: 30,
-    flexDirection: 'row',
-},
-input: {
-    height: 40,
-    color: '#333',
-},
-description: {
-    marginLeft: 10,
-    marginTop: 40,
-    color: '#000000',
-    fontSize: 26,
-    fontWeight: '500',
-},
-description1: {
-    marginTop: 5,
-    color: '#000000',
-    fontSize: 26,
-    alignItems: "flex-start",
-    fontWeight: '500',
-    justifyContent: 'space-between',
-    flexDirection: 'row',
-},
-arrow: {
-    marginTop: 45,
-    color: '#00000',
-    width: 22,
-    height: 20,
-},
-arrowicon: {
-    marginRight: 50,
-    flexDirection: 'row',
-    width: 45,
-    marginTop: 45,
-},
-
-
-cards: {
-    gap: 12,
     alignItems: 'center',
-    marginTop: 15,
-    flexDirection: 'row',
-    marginLeft: 8,
-},
-
-
-cards1: {
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: 'rgba(17, 144, 14)',
-    borderRadius: 15,
-    width: 118,
-    height: 77,
-    overflow: 'hidden',
-    marginTop: 20,
-    opacity: 0.7,
-},
-categoryText: {
-    fontWeight: '800',
-},
-cards2: {
-    gap: 10,
-    marginLeft: 8,
-},
-card: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(17, 144, 14, 0.08)',
-    borderRadius: 15,
-    width: 118,
-    height: 77,
-    overflow: 'hidden',
-},
-Prayer: {
-    width: 118,
-    height: 77,
+    paddingHorizontal: 15,
+    marginTop: Platform.OS === 'ios' ? 20 : 10,
+  },
+  userIcon: {
+    width: 35,
+    height: 35,
+    borderRadius: 70,
+    padding: 3,
+    borderWidth: 0.5,
+    borderColor: '#ccc',
     justifyContent: 'center',
     alignItems: 'center',
-},
-notificationButton: {
-    marginRight: 20,
-    backgroundColor: "#fff",
-    borderRadius: 10,
+  },
+  logo: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'red',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 15,
+    marginTop: 20,
+    marginBottom: 10,
+    paddingHorizontal: 10,
+    borderRadius: 40,
+    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 8,
+    paddingHorizontal: 10,
+    fontSize: 16,
+    color: '#000',
+  },
+  searchButton: {
     padding: 10,
-    shadowColor: "#171717",
-    shadowOffset: { width: 2, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-},
-Ville: {
-    color: '#11900E', 
-},
-touch: {
-    color: '#11900E',
-},
-searchIcon: {
-    marginTop: 7,
-},
-...Platform.select({
-    ios: {
-        marginTop: 20,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
-        elevation: 5,
-    },
-    android: {
-        marginTop: 10,
-        elevation: 5,
-    },
-}),
+    borderRadius: 40,
+    marginLeft: 5,
+  },
+  searchIcon: {
+    color: '#000',
+  },
+  categoriesTitle: {
+    fontSize: 25,
+    fontWeight: 'bold',
+    color: '#000',
+    marginLeft: 15,
+    marginTop: 15,
+  },
+  cardsContainer: {
+    paddingHorizontal: 10,
+    paddingVertical: 20,
+  },
+  categoryCard: {
+    marginHorizontal: 10,
+    width: 250,
+    height: 200,
+    overflow: 'hidden',
+    borderRadius: 10,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  categoryImage: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  categoryText: {
+    fontWeight: '800',
+    color: 'white',
+    fontSize: 20,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: -1, height: 1 },
+    textShadowRadius: 10,
+  },
+  categoryText1: {
+    fontWeight: '800',
+    color: 'black',
+    fontSize: 13,
+    marginLeft: 40,
+  },
+  list: {
+    paddingBottom: 20,
+  },
+  listItem: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    marginVertical: 10,
+    marginHorizontal: 15,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  itemContent: {
+    padding: 15,
+  },
+  postHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  userInfo: {
+    marginLeft: 10,
+  },
+  username: {
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  timeAgo: {
+    fontSize: 12,
+    color: '#9c9c9c',
+  },
+  body: {
+    marginBottom: 10,
+  },
+  postImage: {
+    width: '100%',
+    height: 400,
+    borderRadius: 10,
+  },
+  footer: {
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    paddingVertical: 10,
+  },
+  footerIcons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  iconWithText: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconText: {
+    marginLeft: 5,
+    fontSize: 14,
+    color: '#000',
+  },
+});
 
-
-})
-export default index
+export default Index;

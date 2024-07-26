@@ -1,7 +1,7 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
 import Icon from 'react-native-vector-icons/Ionicons';
-
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { TabBarIcon } from '@/components/navigation/TabBarIcon';
 
 import { Colors } from '@/constants/Colors';
@@ -44,11 +44,11 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="category"
+        name="sell"
         options={{
-          title: 'Category',
+          title: 'sell',
           tabBarIcon: ({ color, focused }) => (
-            <Icon name="apps-outline" size={30} color={color} />
+            <Icon name="pricetags-outline" size={30} color={color} />
           ),
         }}
       />

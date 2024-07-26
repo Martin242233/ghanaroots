@@ -13,5 +13,5 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
-  ]
+, "app/(normal_profile_tabs)/chat.jsx", "app/(screens)/chat_individual/[chat_screen].jsx", "app/(normal_profile_tabs)/sell.jsx", "app/(normal_profile_tabs)/buy.jsx", "app/(normal_profile_tabs)/profile.jsx"  ]
 }

@@ -8,9 +8,10 @@
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/images/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "image": "./assets/images/test.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#ffffff",
+      "size": "20"
     },
     "ios": {
       "supportsTablet": true
